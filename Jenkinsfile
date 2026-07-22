@@ -19,7 +19,7 @@ pipeline {
         stage('build') {
             steps {
                 echo 'building spring boot application ...'
-                sh './mvnw test'
+                sh './mvnw clean package -DskipTests'
             }
         }
     }

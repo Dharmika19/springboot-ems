@@ -1,35 +1,41 @@
-pipeline{
-   agent any
+pipeline {
 
-   tools{
-      jdk 'jdk21'
-      maven 'maven'
-   }
+    agent any
 
-   stages{
-
-       stage('checkout'){
-           echo 'checking out source code ...'
-                 checkout scm
-
-              }
-         }
-        stage('build') {
-          steps {
-            echo 'building spring boot application ...'
-            sh './mvnw test'
-                }
-          }
+    tools {
+        jdk 'jdk21'
+        maven 'maven'
     }
-  post {
-        success{ 
-            echo 'Build completed successfully'
-           }
-        failure { 
-            echo 'Build failed'
+
+    stages {
+
+        stage('checkout') {
+            steps {
+                echo 'checking out source code ...'
+                checkout scm
             }
-         always {
-             cleanws()
-             }
-          }
+        }
+
+        stage('build') {
+            steps {
+                echo 'building spring boot application ...'
+                sh './mvnw test'
+            }
+        }
     }
+
+    post {
+
+        success {
+            echo 'Build completed successfully'
+        }
+
+        failure {
+            echo 'Build failed'
+        }
+
+        always {
+            cleanWs()
+        }
+    }
+}

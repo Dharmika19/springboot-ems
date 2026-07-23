@@ -2,11 +2,12 @@ pipeline {
 
     agent any
 
-
     environment {
-
         DOCKER_IMAGE = "dharmika19/springboot-ems:latest"
-
+        DOCKER_CREDENTIALS = "dockerhub-credentials"
+        CONTAINER_NAME = "springboot-ems"
+        BACKUP_NAME = "springboot-ems-backup"
+        PORT_MAPPING = "9090:8080"
     }
 
 
@@ -14,41 +15,25 @@ pipeline {
 
 
         stage('Checkout') {
-
             steps {
-
                 checkout scm
-
             }
-
         }
-
 
 
         stage('Build') {
 
             agent {
-
                 docker {
-
                     image 'maven:3.9.11-eclipse-temurin-21'
-
                     reuseNode true
-
                 }
-
             }
-
 
             steps {
-
                 sh 'mvn clean package -DskipTests'
-
             }
-
         }
-
-
 
 
         stage('Build Docker Image') {
@@ -56,16 +41,12 @@ pipeline {
             steps {
 
                 sh '''
-
-                docker build -t $DOCKER_IMAGE .
-
+                docker build \
+                -t ${DOCKER_IMAGE} .
                 '''
 
             }
-
         }
-
-
 
 
 
@@ -73,29 +54,23 @@ pipeline {
 
             steps {
 
+                script {
 
-                withDockerRegistry(
+                    withDockerRegistry(
+                        credentialsId: "${DOCKER_CREDENTIALS}",
+                        url: "https://index.docker.io/v1/"
+                    ) {
 
-                    credentialsId: 'dockerhub-credentials',
+                        sh '''
+                        docker push ${DOCKER_IMAGE}
+                        '''
 
-                    url: 'https://index.docker.io/v1/'
-
-                ) {
-
-
-                    sh '''
-
-                    docker push $DOCKER_IMAGE
-
-                    '''
+                    }
 
                 }
 
             }
-
         }
-
-
 
 
 
@@ -104,125 +79,117 @@ pipeline {
 
             steps {
 
+                script {
 
-                sh '''
 
-                echo "Starting deployment..."
+                    try {
 
 
+                        echo "Creating backup of current container"
 
-                # Backup current running container
 
-                if [ "$(docker ps -aq -f name=springboot-ems)" ]; then
+                        sh '''
+                        if docker ps -a --format '{{.Names}}' | grep -q ${CONTAINER_NAME}
+                        then
 
+                            docker stop ${CONTAINER_NAME} || true
 
-                    echo "Backing up current container"
+                            docker rename ${CONTAINER_NAME} ${BACKUP_NAME} || true
 
+                        fi
+                        '''
 
-                    docker stop springboot-ems || true
 
 
-                    docker rename springboot-ems springboot-ems-backup || true
+                        echo "Starting new deployment"
 
 
-                fi
 
+                        sh '''
+                        docker run -d \
+                        --name ${CONTAINER_NAME} \
+                        -p ${PORT_MAPPING} \
+                        ${DOCKER_IMAGE}
+                        '''
 
 
 
-                echo "Pulling latest Docker image"
+                        echo "Waiting for application startup"
 
 
-                docker pull $DOCKER_IMAGE
+                        sh '''
+                        sleep 60
+                        '''
 
 
 
+                        echo "Checking application health"
 
 
-                echo "Starting new container"
 
+                        sh '''
+                        curl -f http://localhost:9090/
+                        '''
 
 
-                docker run -d \
 
-                --name springboot-ems \
+                        echo "Deployment Successful"
 
-                -p 9090:8080 \
 
-                $DOCKER_IMAGE
+                        sh '''
+                        docker rm -f ${BACKUP_NAME} || true
+                        '''
 
 
 
+                    }
 
 
-                echo "Waiting for application startup"
+                    catch (Exception e) {
 
 
-                sleep 20
+                        echo "Deployment Failed - Rollback Executed ❌"
 
 
 
+                        sh '''
 
+                        echo "Removing failed container"
 
+                        docker rm -f ${CONTAINER_NAME} || true
 
-                echo "Checking application health"
 
 
+                        echo "Restoring previous container"
 
 
-                if curl -f http://localhost:9090; then
 
+                        if docker ps -a --format '{{.Names}}' | grep -q ${BACKUP_NAME}
+                        then
 
+                            docker rename ${BACKUP_NAME} ${CONTAINER_NAME}
 
-                    echo "Deployment successful"
+                            docker start ${CONTAINER_NAME}
 
+                        fi
 
 
-                    docker rm -f springboot-ems-backup || true
+                        '''
 
 
+                        error("Deployment failed")
 
+                    }
 
-                else
-
-
-
-                    echo "Deployment failed"
-
-                    echo "Starting rollback..."
-
-
-
-                    docker rm -f springboot-ems || true
-
-
-
-                    docker rename springboot-ems-backup springboot-ems || true
-
-
-
-                    docker start springboot-ems
-
-
-
-                    exit 1
-
-
-
-                fi
-
-
-
-                '''
+                }
 
             }
 
         }
 
 
+
     }
-
-
 
 
 
@@ -231,19 +198,14 @@ pipeline {
 
         success {
 
-
-            echo 'CI/CD Deployment Successful 🚀'
-
+            echo "CI/CD Pipeline Completed Successfully ✅"
 
         }
 
 
-
         failure {
 
-
-            echo 'Deployment Failed - Rollback Executed ❌'
-
+            echo "CI/CD Pipeline Failed ❌"
 
         }
 

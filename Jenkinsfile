@@ -1,39 +1,24 @@
 pipeline {
-
     agent any
-
-    tools {
-        jdk 'jdk21'
-        maven 'maven'
-    }
 
     stages {
 
-        stage('checkout') {
+        stage('Checkout') {
             steps {
-                echo 'checking out source code ...'
                 checkout scm
             }
         }
 
-        stage('build') {
+        stage('Build Jar') {
             steps {
-                echo 'building spring boot application ...'
-                sh './mvnw clean package -DskipTests'
+                sh 'mvn clean package'
             }
         }
-    }
 
-    post {
-
-        success {
-            echo 'Build completed successfully'
+        stage('Build Docker Image') {
+            steps {
+                sh 'docker build -t springboot-app:latest .'
+            }
         }
-
-        failure {
-            echo 'Build failed'
-        }
-
-       
     }
 }

@@ -1,29 +1,16 @@
-pipeline {
-    agent any
+stage('Push Docker Image') {
+    steps {
+        script {
+            docker.withRegistry(
+                'https://index.docker.io/v1/',
+                'dockerhub-credentials'
+            ) {
 
-    stages {
+                def image = docker.build(
+                    "dharmika19/springboot-ems:latest"
+                )
 
-        stage('Checkout') {
-            steps {
-                checkout scm
-            }
-        }
-
-        stage('Build') {
-            agent {
-                docker {
-                    image 'maven:3.9.11-eclipse-temurin-21'
-                    reuseNode true
-                }
-            }
-            steps {
-                sh 'mvn clean package -DskipTests'
-            }
-        }
-
-        stage('Build Docker Image') {
-            steps {
-                sh 'docker build -t springboot-ems:latest .'
+                image.push()
             }
         }
     }

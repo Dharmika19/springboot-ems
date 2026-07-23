@@ -64,7 +64,7 @@ pipeline {
             steps {
 
                 withDockerRegistry(
-                    credentialsId: 'Docker-hub-token',
+                    credentialsId: 'Dockerhub-credentials',
                     url: 'https://index.docker.io/v1/'
                 ) {
 

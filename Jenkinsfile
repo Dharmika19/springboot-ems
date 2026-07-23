@@ -72,7 +72,7 @@ pipeline {
 
                     try {
 
-                        sh 'curl -f http://localhost:9090/'
+                       sh 'docker exec springboot-ems curl -f http://localhost:8080/'
 
                         echo "Application is Healthy."
 

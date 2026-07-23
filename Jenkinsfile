@@ -2,59 +2,75 @@ pipeline {
 
     agent any
 
+
+    environment {
+        DOCKER_IMAGE = "dharmika19/springboot-ems:latest"
+    }
+
+
     stages {
 
+
         stage('Checkout') {
+
             steps {
                 checkout scm
             }
+
         }
 
 
-        stage('Build Application') {
+
+        stage('Build') {
 
             agent {
+
                 docker {
                     image 'maven:3.9.11-eclipse-temurin-21'
                     reuseNode true
                 }
+
             }
 
+
             steps {
+
                 sh 'mvn clean package -DskipTests'
+
             }
+
         }
+
+
 
 
         stage('Build Docker Image') {
 
             steps {
+
                 sh '''
-                docker build \
-                -t dharmika19/springboot-ems:latest .
+                docker build -t $DOCKER_IMAGE .
                 '''
+
             }
+
         }
+
+
 
 
         stage('Push Docker Image') {
 
             steps {
 
-                script {
+                withDockerRegistry(
+                    credentialsId: 'Docker-hub-token',
+                    url: 'https://index.docker.io/v1/'
+                ) {
 
-                    docker.withRegistry(
-                        'https://index.docker.io/v1/',
-                        'dockerhub-credentials'
-                    ) {
-
-                        def image = docker.image(
-                            'dharmika19/springboot-ems:latest'
-                        )
-
-                        image.push()
-
-                    }
+                    sh '''
+                    docker push $DOCKER_IMAGE
+                    '''
 
                 }
 
@@ -63,30 +79,48 @@ pipeline {
         }
 
 
-        stage('Deploy Application') {
+
+
+
+        stage('Deploy') {
 
             steps {
 
                 sh '''
-                
+
+                echo "Stopping old container..."
+
                 docker stop springboot-ems || true
-                
+
+
+                echo "Removing old container..."
+
                 docker rm springboot-ems || true
 
 
-                docker pull dharmika19/springboot-ems:latest
 
+                echo "Pulling latest image..."
+
+                docker pull $DOCKER_IMAGE
+
+
+
+                echo "Starting new container..."
 
                 docker run -d \
                 --name springboot-ems \
-                -p 8081:8080 \
-                dharmika19/springboot-ems:latest
+                -p 9090:8080 \
+                $DOCKER_IMAGE
+
+
+                echo "Deployment completed"
 
                 '''
 
             }
 
         }
+
 
     }
 
@@ -94,12 +128,16 @@ pipeline {
     post {
 
         success {
-            echo 'Deployment Successful!'
+
+            echo 'Deployment Successful 🚀'
+
         }
 
 
         failure {
-            echo 'Pipeline Failed!'
+
+            echo 'Deployment Failed ❌'
+
         }
 
     }
